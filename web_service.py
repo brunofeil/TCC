@@ -66,26 +66,27 @@ def get_assignments(course_id):
     assignments_list = assignments_df['AssignmentId'].tolist()
 
     # Pegar os envios e vizualizações das tarefas
-    submissions = moodle_api.call('mod_assign_get_submissions', assignmentids = assignments_list)
-    submissions = submissions['assignments']
-    columns_names = ['Assignment', 'UserId', 'AttemptNumber', 'Status', 'TimeCreated', 'TimeModifier', 'GradingStatus', 'DueDate']
-    submissions_df = pd.DataFrame(columns=columns_names)
-    df_index = 1
-    for submission in submissions:
-        for submission_attempt in submission['submissions']:
-            submissions_df.loc[df_index] = [
-                submission['assignmentid'], 
-                submission_attempt['userid'], 
-                submission_attempt['attemptnumber'], 
-                submission_attempt['status'], 
-                submission_attempt['timecreated'], 
-                submission_attempt['timemodified'], 
-                submission_attempt['gradingstatus'],
-                assignments_df.loc[assignments_df['AssignmentId'] == submission['assignmentid']]['DueDate'].values[0]
-            ]
-            df_index += 1
-    print()
-    print(submissions_df)
+    if len(assignments_list) > 0:
+        submissions = moodle_api.call('mod_assign_get_submissions', assignmentids = assignments_list)
+        submissions = submissions['assignments']
+        columns_names = ['Assignment', 'UserId', 'AttemptNumber', 'Status', 'TimeCreated', 'TimeModifier', 'GradingStatus', 'DueDate']
+        submissions_df = pd.DataFrame(columns=columns_names)
+        df_index = 1
+        for submission in submissions:
+            for submission_attempt in submission['submissions']:
+                submissions_df.loc[df_index] = [
+                    submission['assignmentid'], 
+                    submission_attempt['userid'], 
+                    submission_attempt['attemptnumber'], 
+                    submission_attempt['status'], 
+                    submission_attempt['timecreated'], 
+                    submission_attempt['timemodified'], 
+                    submission_attempt['gradingstatus'],
+                    assignments_df.loc[assignments_df['AssignmentId'] == submission['assignmentid']]['DueDate'].values[0]
+                ]
+                df_index += 1
+        print()
+        print(submissions_df)
 
 def get_forums(course_id):
     forums = moodle_api.call('mod_forum_get_forums_by_courses', courseids = [course_id]) 
