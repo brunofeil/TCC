@@ -3,11 +3,13 @@ import pandas as pd
 
 moodle_api.URL = "https://moodle.ufrgs.br/"
 moodle_api.KEY = ""
+cartao_ufrgs = ""
 
 
 def get_course_id():
     # Listar os cursos
-    courses = moodle_api.call('core_course_get_courses')
+    webservice_user_id = moodle_api.call('core_user_get_users_by_field', field = 'username', values = [cartao_ufrgs])[0]['id'] 
+    courses = moodle_api.call('core_enrol_get_users_courses', userid = webservice_user_id) 
     columns_names = ['CourseId', 'ShortName', 'FullName']
     courses_df = pd.DataFrame(columns=columns_names)
     df_index = 1
