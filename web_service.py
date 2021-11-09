@@ -6,7 +6,7 @@ import psycopg2
 PGHOST='localhost'
 PGDATABASE='postgres'
 PGUSER='postgres'
-PGPASSWORD='annelinda'
+PGPASSWORD=''
 conn_string = "host="+ PGHOST +" port="+ "5432" +" dbname="+ PGDATABASE +" user=" + PGUSER +" password="+ PGPASSWORD
 
 
