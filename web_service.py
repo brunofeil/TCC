@@ -293,6 +293,118 @@ def consolidate():
     conn.commit()
     conn.close()
 
+def import_flat():
+    conn=psycopg2.connect(conn_string)
+    cursor = conn.cursor()
+
+    # Criar um "create_insert"
+
+    str_insert = """
+    INSERT INTO staging.tmp_flat_students (course_id, course_name, student_id, tarefas_disciplina, tarefas_enviadas_pelo_aluno, envios_em_dia, envios_atrasados, media_notas_tarefas, posts_disciplina, posts_criados_pelo_aluno, posts_respondidos_pelo_aluno, quizzes_disciplina, quizzes_finalizados_pelo_aluno, quizzes_atrasados_pelo_aluno, quizzes_abandonados_pelo_aluno, media_tempo_conclusao_quiz, media_notas_quiz, nota_final)
+    select
+        c.course_id,
+        c.full_name course_name,
+        u.user_id student_id,
+        a.tarefas_disciplina,
+        a.tarefas_enviadas tarefas_enviadas_pelo_aluno,
+        a.envios_em_dia,
+        a.envios_atrasados,
+        (case when g_tarefas.media_notas_tarefas is null then -1 else g_tarefas.media_notas_tarefas end) media_notas_tarefas,
+        f.posts_disciplina,
+        f.posts_criados posts_criados_pelo_aluno,
+        f.posts_respondidos posts_respondidos_pelo_aluno,
+        q.quizzes_disciplina,
+        q.quizzes_finalizados quizzes_finalizados_pelo_aluno,
+        q.quizzes_atrasados quizzes_atrasados_pelo_aluno,
+        q.quizzes_abandonados quizzes_abandonados_pelo_aluno,
+        q.media_tempo_conclusao media_tempo_conclusao_quiz,
+        q.media_notas media_notas_quiz,
+        (case when g_final.nota_final is null then -1 else g_final.nota_final end) nota_final
+    from logs.courses c
+    join logs.users u on u.course_id = c.course_id 
+    join 
+    (
+        select 
+            user_id,
+            tarefas_disciplina,
+            sum(case when envio < 0 then 1 else 0 end) envios_atrasados,
+            sum(case when envio >= 0 then 1 else 0 end) envios_em_dia,
+            count(distinct assignment_id) tarefas_enviadas
+        from 
+        (
+        select 
+            u.user_id,
+            a.assignment_id,
+            (select count(distinct a_temp.assignment_id) from logs.assignments a_temp) tarefas_disciplina,
+            a.due_date - a.time_modifier envio
+        from logs.assignments a
+        right join logs.users u on u.user_id = a.user_id 
+        where u.user_role = 'student'
+        ) t
+        group by user_id, tarefas_disciplina
+    ) a on a.user_id = u.user_id 
+    join
+    (
+        select 
+            u.user_id,
+            (select count(distinct f_temp.post_id) from logs.forums f_temp) posts_disciplina,
+            sum(case when f.post_status = 'creation' then 1 else 0 end) posts_criados,
+            sum(case when f.post_status = 'response' then 1 else 0 end) posts_respondidos
+        from logs.forums f
+        right join logs.users u on u.user_id = f.post_user_id 
+        where u.user_role = 'student'
+        group by u.user_id
+    ) f on f.user_id = u.user_id 
+    join 
+    (
+        select 
+            u.user_id,
+            (select count(distinct q_temp.quiz_id) from logs.quizzes q_temp) quizzes_disciplina,
+            max(q.attempt_number) nro_maximo_tentativas,
+            sum(case when q.status = 'finished' then 1 else 0 end) quizzes_finalizados,
+            sum(case when q.status = 'overdue' then 1 else 0 end) quizzes_atrasados,
+            sum(case when q.status = 'abandoned' then 1 else 0 end) quizzes_abandonados,
+            sum(q.time_finish - q.time_start)/count(1) media_tempo_conclusao,
+            round(sum(case when q.attempt_number > 1 then 0 else best_grade end) / count(distinct q.quiz_id),2) media_notas
+        from logs.quizzes q 
+        right join logs.users u on u.user_id = q.user_id 
+        where u.user_role = 'student'
+        group by u.user_id 
+    ) q on q.user_id = u.user_id 
+    left join
+    (
+        select
+            user_id,
+            max(g.grade) nota_final 
+        from logs.grades g
+        where g.item_type = 'course' and g.grade <> -1
+        group by user_id
+    ) g_final on g_final.user_id = u.user_id 
+    left join
+    (
+        select
+            g.user_id,
+            round(avg(g.grade), 2) media_notas_tarefas
+        from logs.grades g 
+        where g.item_module = 'assign' and g.grade <> -1
+        group by g.user_id
+    ) g_tarefas on g_tarefas.user_id = u.user_id 
+    where u.user_role = 'student'"""
+    str_truncate = "TRUNCATE TABLE staging.tmp_flat_students"
+
+    cursor.execute(str_truncate)
+    cursor.execute(str_insert)
+    conn.commit()
+    conn.close()
+
+
+def update_flat():
+    conn=psycopg2.connect(conn_string)
+    cursor = conn.cursor()
+    str_function_call = "select staging.sp_update_flat()"
+    cursor.execute(str_function_call)
+    conn.commit()
+    conn.close()
 
 if __name__ == '__main__':
     course_id, courses_df = get_course_id()
@@ -310,3 +422,6 @@ if __name__ == '__main__':
     import_grades(grades_df)
 
     consolidate()
+
+    import_flat()
+    update_flat()
