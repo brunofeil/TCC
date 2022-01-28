@@ -1,6 +1,6 @@
 import moodle_api
 import pandas as pd
-
+from random import randint
 import psycopg2
 
 PGHOST='localhost'
@@ -37,6 +37,7 @@ def get_course_id():
             break
     return course_id, courses_df
 
+
 def get_students_ids(course_id):
     # Pegar os alunos do curso
     users = moodle_api.call('core_enrol_get_enrolled_users', courseid = course_id)
@@ -53,9 +54,28 @@ def get_students_ids(course_id):
             user['roles'][0]['shortname']
         ]
         df_index += 1
+    users_df = anonymize_students_id(users_df)
     print()
     print(users_df)
     return users_df
+
+
+def anonymize_students_id(u_df):
+    """ 
+        Created by Jéferson Guimarães (JefersonFG)
+
+        Available on: https://github.com/JefersonFG/moodle-log-anonymizer
+    """
+    all_students_ids = u_df.loc[u_df['Role']=='student']['UserId']
+    original_ids = set()
+    original_ids
+    original_ids.update(all_students_ids.unique())
+    original_ids = list(original_ids)
+    ids_dict = {key: str(randint(0, 99999)) for key in original_ids}
+    u_df['AnonymizedId'] = u_df['UserId'].map(ids_dict)
+    u_df['AnonymizedId'] = u_df['AnonymizedId'].fillna(u_df['UserId'])
+    return u_df
+
 
 def get_assignments(course_id):
     # Assignment
@@ -100,6 +120,7 @@ def get_assignments(course_id):
 
     return submissions_df
 
+
 def get_forums(course_id):
     forums = moodle_api.call('mod_forum_get_forums_by_courses', courseids = [course_id]) 
     columns_names = ['ForumId', 'DiscussionId', 'DiscussionCreatedById', 'PostId', 'PostUserId', 'PostStatus']
@@ -128,7 +149,8 @@ def get_forums(course_id):
     print(forums_df)
     return forums_df
 
-def get_quizzes(course_id, users_df):
+
+def get_quizzes(course_id, u_df):
     # Quiz
     # Pegar os ids de todos os quizes
     quizzes = moodle_api.call('mod_quiz_get_quizzes_by_courses', courseids = [course_id])['quizzes']
@@ -140,7 +162,7 @@ def get_quizzes(course_id, users_df):
         quizzes_ids.append(quiz['id'])
 
     # Para cada aluno do curso, pegar as tentativas de resolução dos quizzes
-    for user_id in users_df.loc[users_df['Role'] == 'student']['UserId'].tolist():
+    for user_id in u_df.loc[u_df['Role'] == 'student']['UserId'].tolist():
         for quiz_id in quizzes_ids:
             attempts = moodle_api.call('mod_quiz_get_user_attempts', quizid = quiz_id, userid = user_id)['attempts']
             quiz_best_grade = moodle_api.call('mod_quiz_get_user_best_grade', quizid = quiz_id, userid = user_id)
@@ -161,11 +183,12 @@ def get_quizzes(course_id, users_df):
     print(quizzes_df)
     return quizzes_df
 
-def get_grades(course_id, users_df):
+
+def get_grades(course_id, u_df):
     columns_names = ['ItemId', 'UserId', 'ItemName', 'ItemType', 'ItemModule', 'ItemIsntance', 'Grade', 'DateGradeSubmitted', 'MaxGrade']
     grades_df = pd.DataFrame(columns=columns_names)
     df_index = 1
-    for user_id in users_df.loc[users_df['Role'] == 'student']['UserId'].tolist():
+    for user_id in u_df.loc[u_df['Role'] == 'student']['UserId'].tolist():
         grades = moodle_api.call('gradereport_user_get_grade_items', courseid = course_id, userid = user_id)['usergrades'][0]['gradeitems']
         for grade in grades:
             if grade['itemtype'] != 'category':
@@ -184,6 +207,7 @@ def get_grades(course_id, users_df):
     print(grades_df)
     return grades_df
 
+
 def import_courses(c_df):
     conn=psycopg2.connect(conn_string)
     cursor = conn.cursor()
@@ -201,13 +225,14 @@ def import_courses(c_df):
     conn.commit()
     conn.close()
 
+
 def import_users(u_df):
     conn=psycopg2.connect(conn_string)
     cursor = conn.cursor()
 
     # Criar um "create_insert"
 
-    str_insert = "INSERT INTO staging.tmp_users (course_id, user_id, user_role) VALUES (%s, %s, %s)"
+    str_insert = "INSERT INTO staging.tmp_users (course_id, user_id, user_role, anonymized_id) VALUES (%s, %s, %s, %s)"
     str_truncate = "TRUNCATE TABLE staging.tmp_users"
 
     cursor.execute(str_truncate)
@@ -217,6 +242,7 @@ def import_users(u_df):
             cursor.execute(str_insert, tuple(row))
     conn.commit()
     conn.close()
+
 
 def import_assignments(a_df):
     conn=psycopg2.connect(conn_string)
@@ -235,6 +261,7 @@ def import_assignments(a_df):
     conn.commit()
     conn.close()
 
+
 def import_foruns(f_df):
     conn=psycopg2.connect(conn_string)
     cursor = conn.cursor()
@@ -250,6 +277,7 @@ def import_foruns(f_df):
             cursor.execute(str_insert, tuple(row))
     conn.commit()
     conn.close()
+
 
 def import_quizzes(q_df):
     conn=psycopg2.connect(conn_string)
@@ -268,6 +296,7 @@ def import_quizzes(q_df):
     conn.commit()
     conn.close()
 
+
 def import_grades(g_df):
     conn=psycopg2.connect(conn_string)
     cursor = conn.cursor()
@@ -285,6 +314,7 @@ def import_grades(g_df):
     conn.commit()
     conn.close()
 
+
 def consolidate():
     conn=psycopg2.connect(conn_string)
     cursor = conn.cursor()
@@ -292,6 +322,7 @@ def consolidate():
     cursor.execute(str_function_call)
     conn.commit()
     conn.close()
+
 
 def import_flat():
     conn=psycopg2.connect(conn_string)
@@ -304,7 +335,7 @@ def import_flat():
     select
         c.course_id,
         c.full_name course_name,
-        u.user_id student_id,
+        u.anonymized_id student_id,
         a.tarefas_disciplina,
         a.tarefas_enviadas tarefas_enviadas_pelo_aluno,
         a.envios_em_dia,
