@@ -73,7 +73,20 @@ df_dados.to_csv(input_path + '\dados.csv',
 
 
 # Import to make the analysis
+df = pd.read_csv(input_path + '\dados.csv', sep=';')
 
+df.drop(['course_id',
+         'course_name',
+         'student_id',
+         'tarefas_disciplina',
+         'posts_disciplina',
+         'quizzes_disciplina'], axis='columns', inplace=True)
+
+# Drop columns with no data (same data to all lines)
+for column in df:
+    print(column)
+    if len(df[column].unique()) <= 1:
+        df.drop([column], axis='columns', inplace=True)
 
 # Pearson correlation
 #Checking if there is continuous data that has a strong correlation with Person correlation
