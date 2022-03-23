@@ -2,6 +2,13 @@ import moodle_api
 import pandas as pd
 from random import randint
 import psycopg2
+import os
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.tree import DecisionTreeClassifier
+from sklearn import tree
 
 PGHOST='localhost'
 PGDATABASE='postgres'
@@ -9,6 +16,10 @@ PGUSER='postgres'
 PGPASSWORD=''
 conn_string = "host="+ PGHOST +" port="+ "5432" +" dbname="+ PGDATABASE +" user=" + PGUSER +" password="+ PGPASSWORD
 
+input_path = os.path.split(os.path.abspath("."))[0]+"\input"
+output_path = os.path.split(os.path.abspath("."))[0]+"\output"
+
+colormap = plt.cm.cool
 
 moodle_api.URL = ""
 moodle_api.KEY = ""
@@ -55,8 +66,8 @@ def get_students_ids(course_id):
         ]
         df_index += 1
     users_df = anonymize_students_id(users_df)
-    print()
-    print(users_df)
+    # print()
+    # print(users_df)
     return users_df
 
 
@@ -115,8 +126,8 @@ def get_assignments(course_id):
                     assignments_df.loc[assignments_df['AssignmentId'] == submission['assignmentid']]['DueDate'].values[0]
                 ]
                 df_index += 1
-        print()
-        print(submissions_df)
+        # print()
+        # print(submissions_df)
 
     return submissions_df
 
@@ -145,8 +156,8 @@ def get_forums(course_id):
                         'response' if post['hasparent'] else 'creation'
                     ]
                     df_index += 1
-    print()
-    print(forums_df)
+    # print()
+    # print(forums_df)
     return forums_df
 
 
@@ -179,8 +190,8 @@ def get_quizzes(course_id, u_df):
                     quiz_best_grade['grade'] if quiz_best_grade['hasgrade'] else -1
                 ]
                 df_index += 1
-    print()
-    print(quizzes_df)
+    # print()
+    # print(quizzes_df)
     return quizzes_df
 
 
@@ -204,7 +215,7 @@ def get_grades(course_id, u_df):
                         grade['grademax']
                     ]
                 df_index += 1
-    print(grades_df)
+    # print(grades_df)
     return grades_df
 
 
@@ -437,6 +448,165 @@ def update_flat():
     conn.commit()
     conn.close()
 
+
+def get_data_from_postgresql(c_id):
+
+    str_query = """
+    select * from logs.flat_students where course_id = @COURSE_ID
+    """
+    conn=psycopg2.connect(conn_string)
+    cursor = conn.cursor()
+    cursor.execute(str_query.replace('@COURSE_ID', str(c_id)))
+    result = cursor.fetchone()
+
+    data = []
+
+    if result is None:
+        print("Nenhum resultado")
+    else:
+        while result:
+            data.append(result)
+            result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    columns = [
+        'course_id',
+        'course_name',
+        'student_id',
+        'tarefas_disciplina',
+        'tarefas_enviadas_pelo_aluno',
+        'envios_em_dia',
+        'envios_atrasados',
+        'media_notas_tarefas',
+        'posts_disciplina',
+        'posts_criados_pelo_aluno',
+        'posts_respondidos_pelo_aluno',
+        'quizzes_disciplina',
+        'quizzes_finalizados_pelo_aluno',
+        'quizzes_atrasados_pelo_aluno',
+        'quizzes_abandonados_pelo_aluno',
+        'media_tempo_conclusao_quiz',
+        'media_notas_quiz',
+        'nota_final'
+        ]
+
+    df = pd.DataFrame(data, columns = columns)
+    # Export to a csv file
+    csv_path = input_path + '\data_course_' + str(c_id) + '.csv'
+    df.to_csv(csv_path, sep=';', index=False)
+
+    return csv_path
+
+
+def correlation_analysis(csv_path, c_id):
+    # Import to make the analysis
+    df = pd.read_csv(csv_path, sep=';')
+
+    df.drop(['course_id',
+            'course_name',
+            'student_id',
+            'tarefas_disciplina',
+            'posts_disciplina',
+            'quizzes_disciplina'], axis='columns', inplace=True)
+
+    # Drop columns with no data (same data to all lines)
+    for column in df:
+        if len(df[column].unique()) <= 1:
+            df.drop([column], axis='columns', inplace=True)
+
+    corr_path = output_path + '\correlation_course_' + str(c_id) + '.png'
+
+    # Spearman correlation
+    # Checking if there is data that has a strong correlation with Spearman correlation
+    plt.figure(figsize=(20,18))
+    plt.title('Spearman correlation', y=1.05, size=30)
+    correlation = sns.heatmap(df.corr(method='spearman'),linewidths=0.5,vmax=1.0, square=True, cmap=colormap, linecolor='white', annot=True)
+    fig = correlation.get_figure()
+    fig.savefig(corr_path) 
+
+
+def clustering_analysis(csv_path, c_id):
+    # Import to make the analysis
+    df = pd.read_csv(csv_path, sep=';')
+    
+    original_df = df.copy()
+
+    df.drop(['course_id',
+            'course_name',
+            'student_id',
+            'tarefas_disciplina',
+            'posts_disciplina',
+            'quizzes_disciplina'], axis='columns', inplace=True)
+
+    # Drop columns with no data (same data to all lines)
+    for column in df:
+        if len(df[column].unique()) <= 1:
+            df.drop([column], axis='columns', inplace=True)
+
+    # Filling NaN values
+    if 'media_tempo_conclusao_quiz' in df.columns:
+        df.media_tempo_conclusao_quiz.fillna(df.media_tempo_conclusao_quiz.max()*2, inplace=True) #double of maximum quiz completion time
+    if 'media_notas_quiz' in df.columns:
+        df.media_notas_quiz.fillna(0, inplace=True)
+
+    scaler_df = StandardScaler()
+    scaled_df = scaler_df.fit_transform(df)
+    kmeans_df = KMeans(n_clusters=2)
+    kmeans_df.fit(scaled_df)
+    centroids = scaler_df.inverse_transform(kmeans_df.cluster_centers_)
+    clusters = kmeans_df.labels_
+    original_df['cluster'] = clusters
+
+    cluster_path = output_path + '\clustering_course_' + str(c_id) + '.xlsx'
+    original_df.to_excel(cluster_path, index=False) 
+
+
+def decision_trees(csv_path, c_id):
+    # Import to make the analysis
+    df = pd.read_csv(csv_path, sep=';')
+
+    df.drop(['course_id',
+            'course_name',
+            'student_id',
+            'tarefas_disciplina',
+            'posts_disciplina',
+            'quizzes_disciplina'], axis='columns', inplace=True)
+
+    # Drop columns with no data (same data to all lines)
+    for column in df:
+        if len(df[column].unique()) <= 1:
+            df.drop([column], axis='columns', inplace=True)
+
+    # Filling NaN values
+    if 'media_tempo_conclusao_quiz' in df.columns:
+        df.media_tempo_conclusao_quiz.fillna(df.media_tempo_conclusao_quiz.max()*2, inplace=True) #double of maximum quiz completion time
+    if 'media_notas_quiz' in df.columns:
+        df.media_notas_quiz.fillna(0, inplace=True)
+    
+    decisionT_df = df.copy()
+    y_decisionT = decisionT_df.iloc[:, 1].values # class: envios_em_dia
+    y_decisionT = y_decisionT.astype(str)
+
+    # delete tarefas_enviadas_pelo_aluno if equals to envios_em_dia
+    envios_em_dia_equals_todos_envios = decisionT_df.tarefas_enviadas_pelo_aluno.values == decisionT_df.envios_em_dia.values
+    if envios_em_dia_equals_todos_envios.all():
+       decisionT_df.drop(['envios_em_dia', 'tarefas_enviadas_pelo_aluno'], axis='columns', inplace=True)
+    else:
+       decisionT_df.drop(['envios_em_dia'], axis='columns', inplace=True)
+
+    X_decisionT = decisionT_df.values
+    decisionT = DecisionTreeClassifier(criterion='entropy')
+    decisionT.fit(X_decisionT, y_decisionT)
+
+    X = decisionT_df.columns
+    figure, axis = plt.subplots(nrows=1, ncols=1, figsize=(24,24))
+    tree.plot_tree(decisionT, feature_names=X, class_names = decisionT.classes_, filled=True)
+
+    tree_path = output_path + r'\tree_course_' + str(c_id) + '.png'
+
+    figure.savefig(tree_path)
+
 if __name__ == '__main__':
     course_id, courses_df = get_course_id()
     users_df = get_students_ids(course_id)
@@ -456,3 +626,12 @@ if __name__ == '__main__':
 
     import_flat()
     update_flat()
+
+    csv_path = get_data_from_postgresql(course_id)
+
+    correlation_analysis(csv_path, course_id)
+
+    clustering_analysis(csv_path, course_id)
+
+    decision_trees(csv_path, course_id)
+
