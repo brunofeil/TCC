@@ -12,9 +12,9 @@ from sklearn import tree
 from pandas_profiling import ProfileReport    
 
 PGHOST='localhost'
-PGDATABASE='postgres'
-PGUSER='postgres'
-PGPASSWORD='annelinda'
+PGDATABASE=''
+PGUSER=''
+PGPASSWORD=''
 PORT = '5432'
 conn_string = "host="+ PGHOST +" port="+ PORT +" dbname="+ PGDATABASE +" user=" + PGUSER +" password="+ PGPASSWORD
 
@@ -22,9 +22,9 @@ input_path = os.path.split(os.path.abspath("."))[0]+"\input"
 output_path = os.path.split(os.path.abspath("."))[0]+"\output"
 colormap = plt.cm.cool
 
-moodle_api.URL = "http://localhost/" #"https://moodle.ufrgs.br/"
-moodle_api.KEY = '8f90b66df0972a424f0f7765c19e721f'#"697e99200944982b60988fb3bae4bfca"#"4b9b988cc1d65e93b14baa86a62f0519"
-user_name = 'professor_teste'#'professor_teste'#'web_service_user'
+moodle_api.URL = "http://localhost/" 
+moodle_api.KEY = ''
+user_name = ''
 
 def get_course_id():
     # Listar os cursos
