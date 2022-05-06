@@ -1,7 +1,0 @@
-course_id;course_name;student_id;tarefas_disciplina;tarefas_enviadas_pelo_aluno;envios_em_dia;envios_atrasados;media_notas_tarefas;posts_disciplina;posts_criados_pelo_aluno;posts_respondidos_pelo_aluno;quizzes_disciplina;quizzes_finalizados_pelo_aluno;quizzes_atrasados_pelo_aluno;quizzes_abandonados_pelo_aluno;media_tempo_conclusao_quiz;media_notas_quiz;nota_final
-2;Curso Teste para TCC;73295;2;0;0;0;-1.00;32;0;0;3;0;0;0;;;-1.00
-2;Curso Teste para TCC;94971;2;2;2;0;-1.00;32;0;0;3;4;0;0;4593.0;7.59;-1.00
-2;Curso Teste para TCC;42685;2;1;1;0;-1.00;32;0;0;3;3;0;0;347853.0;8.50;-1.00
-2;Curso Teste para TCC;80033;2;2;2;0;-1.00;32;0;2;3;3;0;0;3531.0;9.05;-1.00
-2;Curso Teste para TCC;52668;2;0;0;0;-1.00;32;0;0;3;3;0;0;349276.0;8.43;-1.00
-2;Curso Teste para TCC;36603;2;1;1;0;-1.00;32;0;0;3;4;0;0;2541.0;8.91;-1.00
