@@ -15,14 +15,14 @@ PGHOST='localhost'
 PGDATABASE=''
 PGUSER=''
 PGPASSWORD=''
-PORT = '5432'
+PORT = ''
 conn_string = "host="+ PGHOST +" port="+ PORT +" dbname="+ PGDATABASE +" user=" + PGUSER +" password="+ PGPASSWORD
 
 input_path = os.path.split(os.path.abspath("."))[0]+"\input"
 output_path = os.path.split(os.path.abspath("."))[0]+"\output"
 colormap = plt.cm.cool
 
-moodle_api.URL = "http://localhost/" 
+moodle_api.URL = "" 
 moodle_api.KEY = ''
 user_name = ''
 
